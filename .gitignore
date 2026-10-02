@@ -40,3 +40,26 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# --- Credenciales en texto plano ---
+# El repo es PUBLICO: nada de esto puede llegar a un commit.
+*.jsonl
+*contrase*.txt
+*CONTRASE*.txt
+*password*.txt
+*token*.txt
+client_secret*.json
+
+# --- Datos de clientes y analisis interno ---
+# Contienen pedidos, montos y datos personales. No se publican.
+analisis/
+outputs/
+pipeline/
+*.csv
+*.xlsx
+*.xls
+*.log
+
+# Contexto interno: nombra al cliente y sus IDs de cuenta.
+# Los commits 51419db y e217357 sacaron justamente eso del repo publico.
+CLAUDE.md

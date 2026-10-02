@@ -31,6 +31,11 @@ app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
 
 ADMIN_USER = "admin"
 ADMIN_PASS = os.environ.get("ADMIN_PASSWORD", "")
+if not ADMIN_PASS:
+    raise RuntimeError(
+        "ADMIN_PASSWORD no está definida o está vacía en el entorno/.env. "
+        "El servidor no arranca sin contraseña de admin."
+    )
 
 SERVICE_ACCOUNT_FILE = os.environ.get(
     "GOOGLE_SERVICE_ACCOUNT_FILE",

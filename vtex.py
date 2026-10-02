@@ -4,6 +4,7 @@ Credenciales vía variables de entorno: VTEX_ACCOUNT, VTEX_APP_KEY, VTEX_APP_TOK
 """
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -146,12 +147,20 @@ def get_product_detail(product_id: str) -> dict | None:
         if datetime.now(timezone.utc) - cached_at < _CACHE_TTL:
             return {k: entry[k] for k in ("name", "category", "brand", "categoryId", "brandId")}
 
-    resp = requests.get(
-        _base("/api/catalog_system/pub/products/search"),
-        headers=_headers(),
-        params={"fq": "productId:" + product_id},
-        timeout=15,
-    )
+    for attempt in range(1, 4):
+        try:
+            resp = requests.get(
+                _base("/api/catalog_system/pub/products/search"),
+                headers=_headers(),
+                params={"fq": "productId:" + product_id},
+                timeout=15,
+            )
+            break
+        except Exception:
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+            else:
+                return None
     if not resp.ok or not resp.json():
         return None
 

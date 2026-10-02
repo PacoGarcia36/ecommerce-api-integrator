@@ -2,10 +2,14 @@ import os
 from datetime import datetime, timedelta
 import requests
 
-_BASE = "https://graph.facebook.com/v19.0"
+_BASE = "https://graph.facebook.com/v21.0"
 
-# Acciones de Meta que contamos como conversiones (compra)
-_PURCHASE_ACTIONS = {"purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"}
+# Compras: SOLO omni_purchase. "purchase", "omni_purchase" y
+# "offsite_conversion.fb_pixel_purchase" reportan la MISMA venta por canales de
+# conteo distintos — sumarlos triplica compras y revenue. omni_purchase es lo
+# que el Ads Manager muestra como "Compras", ya deduplicado. Validado contra el
+# panel el 2026-07-14 (2.361 compras reales vs 7.113 que reportaba la suma).
+_PURCHASE_ACTIONS = {"omni_purchase"}
 
 # Presets nativos de Meta para períodos comunes
 _DATE_PRESETS = {7: "last_7d", 14: "last_14d", 30: "last_30d"}
@@ -37,13 +41,38 @@ def _date_params(days: int) -> dict:
 
 
 def _get(path: str, params: dict) -> dict:
+    """GET con manejo de errores de Meta y paginación (sigue paging.next hasta agotar)."""
     params["access_token"] = _token()
-    resp = requests.get(f"{_BASE}/{path}", params=params, timeout=20)
-    resp.raise_for_status()
-    data = resp.json()
-    if "error" in data:
-        raise RuntimeError(data["error"].get("message", str(data["error"])))
-    return data
+    url = f"{_BASE}/{path}"
+    result = None
+
+    while url:
+        resp = requests.get(url, params=params, timeout=20)
+        try:
+            data = resp.json()
+        except ValueError:
+            resp.raise_for_status()
+            raise
+
+        if "error" in data:
+            err = data["error"]
+            code = err.get("code")
+            msg = err.get("message", str(err))
+            if code == 190:
+                raise RuntimeError(f"(#190) Token de Meta expirado o inválido. Regenerar. Detalle: {msg}")
+            if code == 200:
+                raise RuntimeError(f"(#200) Permisos insuficientes sobre la cuenta publicitaria. Detalle: {msg}")
+            raise RuntimeError(f"(#{code}) {msg}")
+
+        if result is None:
+            result = data
+        else:
+            result["data"] = result.get("data", []) + data.get("data", [])
+
+        url = data.get("paging", {}).get("next")
+        params = {}  # `next` ya incluye todos los parámetros en la URL
+
+    return result
 
 
 def _sum_action(actions: list, action_values: list, keys: set) -> tuple[float, float]:
